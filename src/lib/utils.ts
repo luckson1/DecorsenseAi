@@ -1,21 +1,20 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { Redis } from '@upstash/redis';
-import { env } from '@/env.mjs';
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
 export function appendNewToName(name: string) {
-  let insertPos = name.indexOf('.');
-  let newName = name
+  const insertPos = name.indexOf('.');
+  const  newName = name
     .substring(0, insertPos)
     .concat('-new', name.substring(insertPos));
   return newName;
 }
 
 function forceDownload(blobUrl: string, filename: string) {
-  let a: any = document.createElement('a');
+  const a = document.createElement('a');
   a.download = filename;
   a.href = blobUrl;
   document.body.appendChild(a);
@@ -32,7 +31,7 @@ export function downloadPhoto(url: string, filename: string) {
   })
     .then((response) => response.blob())
     .then((blob) => {
-      let blobUrl = window.URL.createObjectURL(blob);
+      const blobUrl = window.URL.createObjectURL(blob);
       forceDownload(blobUrl, filename);
     })
     .catch((e) => console.error(e));
