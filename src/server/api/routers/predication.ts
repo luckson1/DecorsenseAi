@@ -90,8 +90,8 @@ try {
   prediction = await replicate.wait(prediction, {max_attempts:10});
   if (prediction.error) throw new TRPCError({code: 'INTERNAL_SERVER_ERROR', message: "Prediction failed"})
   if (prediction.status !=='succeeded') throw new TRPCError({code: 'INTERNAL_SERVER_ERROR', message: "Prediction failed"})
-const  predictedImageUrl=prediction.output as string
-  const response = await fetch(  predictedImageUrl);
+const  predictedImageUrl= z.string().url().parse(prediction.output)
+  const response = await fetch(predictedImageUrl);
   const imageArrayBuffer = await response.arrayBuffer();
   const Key=nanoid()
   const params: S3.PutObjectRequest = {
@@ -101,7 +101,7 @@ const  predictedImageUrl=prediction.output as string
   };
   
   await s3.putObject(params).promise();
-const image= await ctx.prisma.prediction.create({
+const imageData= await ctx.prisma.prediction.create({
   data: {
     userId,
     imageKey: Key,
@@ -122,10 +122,10 @@ const image= await ctx.prisma.prediction.create({
   }
 })
 const predictedImage={
-  id:image.id,
+  id:imageData.id,
   url:predictedImageUrl,
-  room: image.prompt.room,
-  theme: image.prompt.theme
+  room: imageData.prompt.room,
+  theme: imageData.prompt.theme
 }
 return predictedImage
 } catch (error) {

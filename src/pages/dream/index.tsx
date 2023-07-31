@@ -184,11 +184,8 @@ await Promise.all(
   
     setLoading(true);
 const key= await  uploadToS3(images)
-   if (!key) {
-    setLoading(false)
-    return
-   }
-generate({theme, key, room})
+const validatedKey=z.string().parse(key)
+generate({theme, key:validatedKey, room})
          
  
     setTimeout(() => {
