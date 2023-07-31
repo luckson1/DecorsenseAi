@@ -57,7 +57,9 @@ export const predictionRouter = createTRPCRouter({
         Bucket: env.BUCKET_NAME,
         Key: input.key,
       });
+
       const image = z.string().url().parse(imageUrl);
+
       try {
         // POST request to Replicate to start the image restoration generation process
         let prediction = await replicate.predictions.create({
@@ -79,7 +81,7 @@ export const predictionRouter = createTRPCRouter({
 
         // Use the Body property directly on the putObject method
 
-        prediction = await replicate.wait(prediction, { max_attempts: 10 });
+        prediction = await replicate.wait(prediction, { interval: 100 });
         if (prediction.error)
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
@@ -90,7 +92,8 @@ export const predictionRouter = createTRPCRouter({
             code: "INTERNAL_SERVER_ERROR",
             message: "Prediction failed",
           });
-        const predictedImageUrl = z.string().url().parse(prediction.output);
+        const predictionOutput = prediction.output as string[];
+        const predictedImageUrl = z.string().url().parse(predictionOutput[1]);
         const response = await fetch(predictedImageUrl);
         const imageArrayBuffer = await response.arrayBuffer();
         const Key = nanoid();
@@ -129,7 +132,7 @@ export const predictionRouter = createTRPCRouter({
       } catch (error) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Prediction failed",
+          message: `Prediction failed`,
         });
       }
     }),
