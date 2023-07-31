@@ -66,6 +66,7 @@
     "react-dom": "18.2.0",
     "react-dropzone": "^14.2.3",
     "react-hook-form": "^7.45.2",
+    "react-hot-toast": "^2.4.1",
     "react-uploader": "^3.38.0",
     "react-use-measure": "^2.1.1",
     "replicate": "^0.14.0",
