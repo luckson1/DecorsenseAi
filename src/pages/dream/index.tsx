@@ -1,16 +1,31 @@
-
-
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import {  type roomType, type themeType, rooms, themes, cn } from "@/lib/utils";
+import {
+  type roomType,
+  type themeType,
+  rooms,
+  themes,
+  cn,
+  downloadPhoto,
+} from "@/lib/utils";
 import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { CaretSortIcon } from "@radix-ui/react-icons";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
-import {CheckIcon,  MoveRight, Trash } from "lucide-react";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+import { CheckIcon, LucideDownload, MoveRight, Trash } from "lucide-react";
 import { z } from "zod";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,443 +35,564 @@ import { ErrorMessage } from "@hookform/error-message";
 import ToolTipComponent from "@/components/tooltip_component";
 import ResizablePanel from "@/components/ResizablePanel";
 
-
-
 import { UploadCloud } from "lucide-react";
 
 import { useDropzone } from "react-dropzone";
-import type { ControllerRenderProps, Noop, UseFormResetField,} from "react-hook-form";
+import type {
+  ControllerRenderProps,
+  Noop,
+  UseFormResetField,
+} from "react-hook-form";
 import axios from "axios";
 import { api } from "@/utils/api";
 import type { Room, Theme } from "@prisma/client";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
+import LoadingSVG from "@/components/loading_svg";
 
 export interface MediaData extends Blob {
-  name:string
+  name: string;
 }
 
-const roomSchema=z.object({key:z.string(), room:z.enum([  'living_room'
-, 'dining_room'
-, 'bedroom'
-, 'bathroom'
-, 'office'
-, 'gaming_room']).refine((val)=> val===  'dining_room'
-||'bedroom'
-||'bathroom'
-||'office'
-||'gamin_room', {
-  message: "You have to select at least one room item.",
-}),
-themes: z.array(z.enum([   'Modern'
-, 'Traditional'
-, 'Contemporary'
-, 'Farmhouse'
-, 'Rustic'
-,"MidCentury"
-,"Mediterranean"
-,"Industrial"
-,"Scandinavian"])).refine((value) => value.some((theme) => theme), {
-  message: "You have to select at least one theme.",
-}),
-images: z.array(z.object({
-  name: z.string().nonempty(),
-  path: z.string().nonempty(),
+const roomSchema = z.object({
+  room: z
+    .enum([
+      "living_room",
+      "dining_room",
+      "bedroom",
+      "bathroom",
+      "office",
+      "gaming_room",
+    ])
+    .refine(
+      (val) =>
+        val === "dining_room" ||
+        "bedroom" ||
+        "bathroom" ||
+        "office" ||
+        "gamin_room",
+      {
+        message: "You have to select at least one room item.",
+      }
+    ),
+  themes: z
+    .array(
+      z.enum([
+        "Modern",
+        "Traditional",
+        "Contemporary",
+        "Farmhouse",
+        "Rustic",
+        "MidCentury",
+        "Mediterranean",
+        "Industrial",
+        "Scandinavian",
+      ])
+    )
+    .refine((value) => value.some((theme) => theme), {
+      message: "You have to select at least one theme.",
+    }),
+  images: z.array(
+    z.object({
+      name: z.string().nonempty(),
+      path: z.string().nonempty(),
+
+      size: z.number().max(10000000),
+      type: z.string().regex(/^image\/.+$/),
+    })
+  ),
+});
+type RoomValues = z.infer<typeof roomSchema>;
+const imageSchema = z.array(
+  z.object({
+    name: z.string().nonempty(),
+    path: z.string().nonempty(),
 
     size: z.number().max(10000000),
-    type: z.string().regex(/^image\/.+$/)
-
-})),
-})
-type RoomValues=z.infer<typeof roomSchema>
-const imageSchema=z.array(z.object({
-  name: z.string().nonempty(),
-  path: z.string().nonempty(),
-
-    size: z.number().max(10000000),
-    type: z.string().regex(/^image\/.+$/)
-
-}))
-type Images=z.infer<typeof imageSchema>
-const Dropzone=({ field, onBlur, images, resetField}: {
-  onBlur: Noop,
-  field: ControllerRenderProps<RoomValues, 'images'>
-  images: Images,
-  resetField:  UseFormResetField<{
+    type: z.string().regex(/^image\/.+$/),
+  })
+);
+type Images = z.infer<typeof imageSchema>;
+const Dropzone = ({
+  field,
+  onBlur,
+  images,
+  resetField,
+}: {
+  onBlur: Noop;
+  field: ControllerRenderProps<RoomValues, "images">;
+  images: Images;
+  resetField: UseFormResetField<{
     key: string;
     room: Room;
-    themes:Theme[];
-    images: Images}>
-
+    themes: Theme[];
+    images: Images;
+  }>;
 }) => {
-  const [files, setFiles] = useState<((MediaData ) & { preview: string, })[]>([]);
-  const {getRootProps, getInputProps, isDragActive} = useDropzone({
+  const [files, setFiles] = useState<(MediaData & { preview: string })[]>([]);
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: {
-      'image/*': []
+      "image/*": [],
     },
     maxFiles: 1,
-    onDrop: (acceptedFiles: MediaData[] ) => {
-   
+    onDrop: (acceptedFiles: MediaData[]) => {
       field.onChange(acceptedFiles);
-      setFiles(acceptedFiles.map(file => Object.assign(file, {
-        preview: URL.createObjectURL(file)
-      
-      })));
-    }
+      setFiles(
+        acceptedFiles.map((file) =>
+          Object.assign(file, {
+            preview: URL.createObjectURL(file),
+          })
+        )
+      );
+    },
   });
-  
-  const thumbs = files.map(file => (
-    <div className='inline-flex border-2 border-base-300 rounded mb-2 mr-2 w-full h-full p-1 border-box' key={file.name}>
-      <div className='flex overflow-hidden h-full w-full relative'>
-       <Image
-        alt="room"
-          src={file.preview}
 
-         className='block w-auto h-full'
+  const thumbs = files.map((file) => (
+    <div
+      className="border-base-300 border-box mb-2 mr-2 inline-flex h-full w-full rounded border-2 p-1"
+      key={file.name}
+    >
+      <div className="relative flex h-full w-full overflow-hidden">
+        <Image
+          alt="room"
+          src={file.preview}
+          className="block h-full w-auto"
           // Revoke data uri after image is loaded
-          onLoad={() => { URL.revokeObjectURL(file.preview) }}
+          onLoad={() => {
+            URL.revokeObjectURL(file.preview);
+          }}
           fill
         />
-         
       </div>
     </div>
   ));
 
   useEffect(() => {
     // Make sure to revokex the data uris to avoid memory leaks, will run on unmount
-    return () => files.forEach(file => URL.revokeObjectURL(file.preview));
+    return () => files.forEach((file) => URL.revokeObjectURL(file.preview));
   }, [files]);
-    return (
-        <section className=" item-center   flex max-w-xs h-[20rem]   w-full flex-col rounded-md  border-2 border-dashed border-[hsl(var(--bc) / var(--tw-border-opacity))] bg-base-100 py-4 px-2 ">
-        <div
-
-          {...getRootProps({ className: "dropzone" })}
-          className="cursor-pointer"
-        >
-
-<input {...getInputProps({ onBlur })} />
-          <div className="flex w-full flex-row items-center justify-center gap-3 align-baseline">
-        
-          
-           {!images &&  <>
-             { isDragActive? <p className="text-green-500">Drop them here!</p>: <Button size={'lg'} className="space-x-2 flex" type="button">     <UploadCloud className="text-xl" /> <p>Click to select an Image</p></Button>}
-             </>}
-       {images &&  <ToolTipComponent content="Change image" >
-  <Button size={'icon'}  onClick={()=>resetField('images')}>
-  <Trash />
-  </Button>
-  </ToolTipComponent>}
-          </div>
+  return (
+    <section className=" item-center   border-[hsl(var(--bc) / var(--tw-border-opacity))]   bg-base-100 flex h-[20rem]  w-full max-w-xs flex-col rounded-md border-2 border-dashed px-2 py-4 ">
+      <div
+        {...getRootProps({ className: "dropzone" })}
+        className="cursor-pointer"
+      >
+        <input {...getInputProps({ onBlur })} />
+        <div className="flex w-full flex-row items-center justify-center gap-3 align-baseline">
+          {!images && (
+            <>
+              {isDragActive ? (
+                <p className="text-green-500">Drop them here!</p>
+              ) : (
+                <Button size={"lg"} className="flex space-x-2" type="button">
+                  {" "}
+                  <UploadCloud className="text-xl" />{" "}
+                  <p>Click to select an Image</p>
+                </Button>
+              )}
+            </>
+          )}
+          {images && (
+            <ToolTipComponent content="Change image">
+              <Trash
+                className="h-6 w-6 cursor-pointer"
+                onClick={() => resetField("images")}
+              />
+            </ToolTipComponent>
+          )}
         </div>
-       <aside className="m-2 flex flex-row flex-wrap h-full w-full relative">
-    
-   
-         {thumbs}
-        
-        </aside>
-      </section>
-    );
+      </div>
+      <aside className="relative m-2 flex h-full w-full flex-row flex-wrap">
+        {thumbs}
+      </aside>
+    </section>
+  );
 };
 
-
-
-
 export default function DreamPage() {
-  const {status}=useSession()
-  const isLoading=status === 'loading'
-  const isUnAuthenticated=status === 'unauthenticated'
-  const router=useRouter()
-  useEffect(()=> {
-    if(isUnAuthenticated) {
-      router.replace('/auth')
+  const { status } = useSession();
+  const isLoading = status === "loading";
+  const isUnAuthenticated = status === "unauthenticated";
+  const router = useRouter();
+  useEffect(() => {
+    if (isUnAuthenticated) {
+      router.replace("/auth");
     }
-  })
-  const [restoredImages, setRestoredImages] = useState<{theme:themeType, url:string, id:string}[] | null>(null);
+  });
+
+  const restoredImages = useRef<
+    { theme: themeType; url: string; id: string }[]
+  >([]);
+  console.log(restoredImages);
   const [loading, setLoading] = useState<boolean>(false);
 
-const {setValue, formState: {errors}, handleSubmit, resetField, control, watch}=useForm<RoomValues>({
-  resolver: zodResolver(roomSchema),
-})
+  const {
+    setValue,
+    formState: { errors },
+    handleSubmit,
+    resetField,
+    control,
+    watch,
+  } = useForm<RoomValues>({
+    resolver: zodResolver(roomSchema),
+  });
 
-const roomThemes=watch('themes')
-const images=watch('images')
+  const roomThemes = watch("themes");
+  const images = watch("images");
 
-
-  const uploadToS3 =async (images: Images)=> {
+  const uploadToS3 = async () => {
     if (!images) {
       return null;
     }
-    
-    // loop through files and create a file entry in db, then create s3 signed url using file id
-   
-      const { data }: { data: { uploadUrl: string; key: string } } =
-        await axios.get(
-          `/api/aws/uploadImage`
-        );
-    
-      const { uploadUrl, key } = data;
 
-      await axios.put(uploadUrl, images[0]);
-    return key
-  }
-const {mutate:generate}=api.prediction.create.useMutation({
-  onSuccess(image) {
-    restoredImages? setRestoredImages([...restoredImages, image]): setRestoredImages([image])
-  },
-})
-async function generatePhotos({ themes, room, images}:{ themes: themeType[], room: roomType, images: Images}) {
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  setLoading(true)
+    const { data }: { data: { uploadUrl: string; key: string } } =
+      await axios.get(`/api/aws/upload_image`);
 
-await Promise.all(
-   themes.map(async(theme)=> {
-  
+    const { uploadUrl, key } = data;
+
+    await axios.put(uploadUrl, images[0]);
+
+    return key;
+  };
+
+  const { mutate: generate, isLoading: isCreationLoading } =
+    api.prediction.create.useMutation({
+      onSuccess(image) {
+        restoredImages.current.push(image);
+      },
+    });
+
+  async function generatePhotos({
+    themes,
+    room,
+  }: {
+    themes: themeType[];
+    room: roomType;
+  }) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
     setLoading(true);
-const key= await  uploadToS3(images)
-const validatedKey=z.string().parse(key)
-generate({theme, key:validatedKey, room})
-         
- 
-    setTimeout(() => {
-      setLoading(false);
-    }, 1300);
-   })
-  )
-}
-const onSubmit=async(data: RoomValues)=> {
-  await generatePhotos(data)
-}
+
+    await Promise.all(
+      themes.map(async (theme) => {
+        const key = await uploadToS3();
+        const validatedKey = z.string().parse(key);
+        generate({ theme, key: validatedKey, room });
+
+        setTimeout(() => {
+          setLoading(false);
+        }, 1300);
+      })
+    );
+  }
+  const onSubmit = async (data: RoomValues) => {
+    await generatePhotos(data);
+  };
   return (
-    
-    <div className="flex max-w-7xl mx-auto flex-col items-center justify-center py-2 min-h-screen">
-      <main className="flex flex-1 w-full flex-col items-center justify-center text-center px-4 mt-4 sm:mb-0 mb-8">
-  
+    <div className="mx-auto flex min-h-screen max-w-7xl flex-col items-center justify-center py-2">
+      <main className="mb-8 mt-4 flex w-full flex-1 flex-col items-center justify-center px-4 text-center sm:mb-0">
         <ResizablePanel>
           <AnimatePresence mode="wait">
-            <motion.div className="flex justify-between  w-full lg:flex-row flex-col mt-4">
-          
-                <form className="w-full flex justify-center flex-col items-center lg:w-1/3 p-5" onSubmit={handleSubmit((data)=> onSubmit(data))}>
-               
-               {isLoading ? <Card className="w-full my-4">
-                <CardContent className="w-full">
-                  <Skeleton className="w-full h-80" />
-                </CardContent>
-               </Card> : <div className="space-y-4 w-full max-w-sm flex flex-col">
-            
-              <Label className="w-full max-w-xs text-start my-2">Upload a picture of your home</Label>
-              <Controller
-          name='images'
-          
-          control={control}
+            <motion.div className="mt-4 flex  w-full flex-col justify-between lg:flex-row">
+              <form
+                className="flex w-full flex-col items-center justify-center p-5 lg:w-1/3"
+                onSubmit={handleSubmit((data) => onSubmit(data))}
+              >
+                {isLoading ? (
+                  <Card className="my-4 w-full">
+                    <CardContent className="w-full">
+                      <Skeleton className="h-80 w-full" />
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="flex w-full max-w-sm flex-col space-y-4">
+                    <Label className="my-2 w-full max-w-xs text-start">
+                      Upload a picture of your home
+                    </Label>
+                    <Controller
+                      name="images"
+                      control={control}
+                      render={({ field }) => (
+                        <Dropzone
+                          field={field}
+                          onBlur={field.onBlur}
+                          resetField={resetField}
+                          images={images}
+                        />
+                      )}
+                    />
+                    <ErrorMessage
+                      errors={errors}
+                      name="imageUrl"
+                      as="h5"
+                      className="text-red-600"
+                    />
+                  </div>
+                )}
 
-          render={({field})=> (
-            
-              <Dropzone field={field} onBlur={field.onBlur} resetField={resetField} images={images}/>
-            )}
-          />
-            <ErrorMessage
-                  errors={errors}
-                  name='imageUrl'
-                  as="h5"
-                  className="text-red-600"
-                />
-            
-      
-                  </div>}
-            
-                  {isLoading ? <Card className="w-full my-4">
-                <CardContent className="w-full">
-                  <Skeleton className="w-full h-20" />
-                </CardContent>
-               </Card> :      <div className="space-y-4 w-full max-w-sm flex flex-col">
-                  
-                
-              <Label className="w-full max-w-xs text-start my-2">select type room </Label>
-          <Controller
-          name="room"
-          
-          control={control}
+                {isLoading ? (
+                  <Card className="my-4 w-full">
+                    <CardContent className="w-full">
+                      <Skeleton className="h-20 w-full" />
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="flex w-full max-w-sm flex-col space-y-4">
+                    <Label className="my-2 w-full max-w-xs text-start">
+                      select type room{" "}
+                    </Label>
+                    <Controller
+                      name="room"
+                      control={control}
+                      render={({ field }) => (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              size={"lg"}
+                              variant="outline"
+                              role="combobox"
+                              className={cn(
+                                "w-full max-w-xs justify-between",
+                                field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value
+                                ? field.value
+                                    .replace(/_/g, " ")
+                                    .replace(/^\w/, (match) =>
+                                      match.toUpperCase()
+                                    )
+                                : "Select room theme"}
+                              <CaretSortIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-full p-0">
+                            <Command>
+                              <CommandInput
+                                placeholder="Search framework..."
+                                className="h-9"
+                              />
+                              <CommandEmpty>No Rooms </CommandEmpty>
+                              <CommandGroup>
+                                {rooms.map((room) => (
+                                  <CommandItem
+                                    value={room}
+                                    key={room}
+                                    // @ts-expect-error because value is string but it should be room type
+                                    onSelect={(value: roomType) => {
+                                      setValue("room", value);
+                                    }}
+                                  >
+                                    {room}
+                                    <CheckIcon
+                                      className={cn(
+                                        "ml-auto h-4 w-4",
+                                        room.toLocaleLowerCase() === field.value
+                                          ? "opacity-100"
+                                          : "opacity-0"
+                                      )}
+                                    />
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      )}
+                    />
+                    <ErrorMessage
+                      errors={errors}
+                      name="room"
+                      as="h5"
+                      className="text-red-600"
+                    />
+                  </div>
+                )}
+                {isLoading ? (
+                  <Card className="my-4 w-full">
+                    <CardContent className="w-full">
+                      <Skeleton className="h-[500px] w-full" />
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="mt-4 flex w-full max-w-sm flex-col space-y-4">
+                    <Label className="my-2 w-full max-w-xs text-start">
+                      Select Design theme (maximum of 4)
+                    </Label>
 
-          render={({field})=> (
-            <Popover>
-            <PopoverTrigger asChild>
-            
-                <Button
-                size={'lg'}
-                  variant="outline"
-                  role="combobox"
-                  className={cn(
-                    "w-full max-w-xs justify-between",
-                    field.value && "text-muted-foreground"
-                  )}
-                >
-                  {field.value
-                    ? field.value.replace(/_/g, ' ').replace(/^\w/, (match) => match.toUpperCase())
-                    : "Select room theme"}
-                  <CaretSortIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              
-            </PopoverTrigger>
-            <PopoverContent className="w-full p-0">
-              <Command>
-                <CommandInput
-                  placeholder="Search framework..."
-                  className="h-9"
-                />
-                <CommandEmpty>No Rooms </CommandEmpty>
-                <CommandGroup>
-                  {rooms.map((room) => (
-                    <CommandItem
-                      value={room}
-                      key={room}
-                      // @ts-expect-error because value is string but it should be room type
-                      onSelect={(value:roomType) => {
-                  setValue('room', value)
-                      }
-                    }
-                    >
-                      {room}
-                      <CheckIcon
-                        className={cn(
-                          "ml-auto h-4 w-4",
-                         room.toLocaleLowerCase()===field.value
-                            ? "opacity-100"
-                            : "opacity-0"
-                        )}
-                      />
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </Command>
-            </PopoverContent>
-          </Popover>
-          )}/>
-             <ErrorMessage
-                  errors={errors}
-                  name='room'
-                  as="h5"
-                  className="text-red-600"
-                />
-             
-        
-                  </div>}
-                  {isLoading ? <Card className="w-full my-4">
-                <CardContent className="w-full">
-                  <Skeleton className="w-full h-[500px]" />
-                </CardContent>
-               </Card> :  <div className="space-y-4 w-full max-w-sm flex flex-col mt-4">
-                  <Label className="w-full max-w-xs text-start my-2">Select Design theme (maximum of 4)</Label>
-             
-                    <div className="w-full h-fit grid grid-cols-3">
-                    {themes.map((t) => (
-  <div className="mb-4 relative" key={t.theme}>
-    <label htmlFor={t.theme} className="cursor-pointer">
-      <Image src={t.url} alt={t.theme} width={90} height={90} className="w-24 h-24 rounded-md" />
-      <div className="w-full text-xs text-start mt-2">{t.theme}</div>
-    </label>
+                    <div className="grid h-fit w-full grid-cols-3">
+                      {themes.map((t) => (
+                        <div className="relative mb-4" key={t.theme}>
+                          <label htmlFor={t.theme} className="cursor-pointer">
+                            <Image
+                              src={t.url}
+                              alt={t.theme}
+                              width={90}
+                              height={90}
+                              className="h-24 w-24 rounded-md"
+                            />
+                            <div className="mt-2 w-full text-start text-xs">
+                              {t.theme}
+                            </div>
+                          </label>
 
-    <Controller
-      name="themes"
-      control={control}
-      render={({ field }) => (
-        <Checkbox
-          id={t.theme}
-          checked={field.value?.includes(t.theme)}
-          className="absolute top-3 right-10"
-          onCheckedChange={(checked) => {
-            if (Array.isArray(field.value)) {
-              const maxAllowedSelections = 4;
+                          <Controller
+                            name="themes"
+                            control={control}
+                            render={({ field }) => (
+                              <Checkbox
+                                id={t.theme}
+                                checked={field.value?.includes(t.theme)}
+                                className="absolute right-10 top-3"
+                                onCheckedChange={(checked) => {
+                                  if (Array.isArray(field.value)) {
+                                    const maxAllowedSelections = 4;
 
-              if (checked) {
-                if (field.value.length < maxAllowedSelections) {
-                  field.onChange([...field.value, t.theme]);
-                }
-              } else {
-                field.onChange(field.value.filter((value) => value !== t.theme));
-              }
-            } else {
-              field.onChange(checked ? [t.theme] : []);
-            }
-          }}
-        />
-      )}
-    />
-       <ErrorMessage
-                  errors={errors}
-                  name='themes'
-                  as="h5"
-                  className="text-red-600"
-                />
-  </div>
-))}
-
-
-                      </div>
-             
-                    
-                  </div>}
-              <div className="w-full flex justify-start"> 
-         
-            <Button className="mt-5 w-full max-w-xs" size={'lg'} role="submit" >
-                   {loading? "Loading....": " Get Ideas"}
+                                    if (checked) {
+                                      if (
+                                        field.value.length <
+                                        maxAllowedSelections
+                                      ) {
+                                        field.onChange([
+                                          ...field.value,
+                                          t.theme,
+                                        ]);
+                                      }
+                                    } else {
+                                      field.onChange(
+                                        field.value.filter(
+                                          (value) => value !== t.theme
+                                        )
+                                      );
+                                    }
+                                  } else {
+                                    field.onChange(checked ? [t.theme] : []);
+                                  }
+                                }}
+                              />
+                            )}
+                          />
+                          <ErrorMessage
+                            errors={errors}
+                            name="themes"
+                            as="h5"
+                            className="text-red-600"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="flex w-full justify-start">
+                  <Button
+                    className="mt-5 w-full max-w-xs"
+                    size={"lg"}
+                    role="submit"
+                  >
+                    {loading || isCreationLoading ? (
+                      <>
+                        <LoadingSVG /> Loading
+                      </>
+                    ) : (
+                      " Get Ideas"
+                    )}
                   </Button>
-                  
-        
-            
+                </div>
+              </form>
+              <div className="w-full space-y-4 lg:w-2/3">
+                <h1 className="font-display mx-auto mb-5 max-w-4xl text-4xl font-bold  tracking-normal sm:text-6xl">
+                  Generate your <span className="text-blue-600">dream</span>{" "}
+                  room
+                </h1>
+                {/* <p>  <span>Uploading a photo <MoveRight /></span> <span>2. Specify the room</span> <span>3. Select room themes</span> <span>4. Click Submit</span></p> */}
+                <div className="flex w-full flex-row space-x-3">
+                  <p>Uploading a photo</p>
+                  <MoveRight className="h-6 w-6" />
+                  <p>Specify the room</p>
+                  <MoveRight className="h-6 w-6" />
+                  <p> Select room themes</p>
+                  <MoveRight className="h-6 w-6" />
+                  <p>Click submit button</p>
+                </div>
+                <div className="grid w-full grid-cols-1 items-start justify-center p-5  md:grid-cols-2">
+                  {!roomThemes && restoredImages.current.length <= 0 && (
+                    <Card className="mt-7 h-72 w-full max-w-[22rem] ">
+                      <CardContent className="flex h-full w-full flex-col items-center justify-center">
+                        <Image
+                          src="/room.png"
+                          alt="room"
+                          width={50}
+                          height={50}
+                        />
+                        <p className="text-lg font-medium tracking-widest">
+                          No Theme selected
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+                  {roomThemes &&
+                    restoredImages.current.length <= 0 &&
+                    roomThemes.map((theme) => (
+                      <Card
+                        className="mt-7 h-72 w-full max-w-[22rem] "
+                        key={theme}
+                      >
+                        <CardContent className="flex h-full w-full flex-col items-center justify-center">
+                          {isCreationLoading ? (
+                            <LoadingSVG />
+                          ) : (
+                            <Image
+                              src="/room.png"
+                              alt="room"
+                              width={50}
+                              height={50}
+                            />
+                          )}
+                          <p className="text-lg font-medium tracking-widest">
+                            {theme}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  {restoredImages.current.length > 0 &&
+                    !isCreationLoading &&
+                    restoredImages.current.map((restoredImage) => (
+                      <div
+                        key={restoredImage.theme}
+                        className="flex w-full flex-col space-y-4"
+                      >
+                        <Card
+                          className="mt-7 h-72 w-full max-w-[22rem] "
+                          key={restoredImage.id}
+                        >
+                          <CardContent className="relative flex h-full w-full flex-col items-center justify-center">
+                            <Image
+                              src={restoredImage.url}
+                              alt="room"
+                              fill
+                              className="rounded-lg"
+                            />
+                            <ToolTipComponent content="download image">
+                              <div className=" absolute top-5 inline-flex h-9 w-9 items-center justify-center rounded-md bg-primary text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50">
+                                <LucideDownload
+                                  onClick={() =>
+                                    downloadPhoto(
+                                      restoredImage.url,
+                                      restoredImage.id
+                                    )
+                                  }
+                                />
+                              </div>
+                            </ToolTipComponent>
+                          </CardContent>
+                        </Card>
+                        <p className="text-lg font-medium tracking-widest">
+                          {restoredImage.theme}
+                        </p>
+                      </div>
+                    ))}
+                </div>
               </div>
-               
-                </form>
-                <div className="w-full lg:w-2/3 space-y-4">
-                <h1 className="mx-auto max-w-4xl font-display text-4xl font-bold tracking-normal  sm:text-6xl mb-5">
-          Generate your <span className="text-blue-600">dream</span> room
-        </h1>
-        {/* <p>  <span>Uploading a photo <MoveRight /></span> <span>2. Specify the room</span> <span>3. Select room themes</span> <span>4. Click Submit</span></p> */}
-        <div className="w-full flex flex-row space-x-3">
-          <p>Uploading a photo</p>
-          <MoveRight className="w-6 h-6" />
-          <p>Specify the room</p>
-          <MoveRight className="w-6 h-6" />
-          <p> Select room themes</p>
-          <MoveRight className="w-6 h-6" />
-          <p>Click submit button</p>
-        </div>
-           <div className="w-full grid grid-cols-1 md:grid-cols-2 justify-center items-start  p-5">
-       
-{!roomThemes && !restoredImages &&
-  <Card className="h-72 w-full max-w-[22rem] mt-7 " >
-    <CardContent className="w-full h-full flex justify-center items-center flex-col">
-     <Image src='/room.png' alt="room" width={50} height={50}/>
-     <p className="tracking-widest font-medium text-lg">No Theme selected</p>
-    </CardContent>
-  </Card>
-}
-{roomThemes && !restoredImages &&
-roomThemes.map(theme=> (
-  <Card className="h-72 w-full max-w-[22rem] mt-7 " key={theme} >
-  <CardContent className="w-full h-full flex flex-col justify-center items-center">
-   <Image src='/room.png' alt="room" width={50} height={50}/>
-   <p className="tracking-widest font-medium text-lg">{theme}</p>
-  </CardContent>
-</Card>
-))
-}
-{restoredImages ?
-restoredImages.map(restoredImage=> (
-<div key={restoredImage.theme} className="w-full flex flex-col space-y-4">
-
-<Card className="h-72 w-full max-w-[22rem] mt-7 " key={restoredImage.id} >
-  <CardContent className="w-full h-full flex flex-col justify-center items-center relative">
-   <Image src={restoredImage.url} alt="room"  fill className="rounded-lg"/>
- 
-  </CardContent>
-</Card>
-<p className="tracking-widest font-medium text-lg">{restoredImage.theme}</p>
-</div>
-)) : null
-}
-           </div>
-           </div>
             </motion.div>
           </AnimatePresence>
         </ResizablePanel>
