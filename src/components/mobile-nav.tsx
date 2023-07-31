@@ -11,11 +11,11 @@ import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "../lib/utils";
 import { useRouter } from "next/navigation";
 import { Home } from "lucide-react";
-
+import { useSession } from "next-auth/react";
 
 export function MobileNav() {
   const [open, setOpen] = React.useState(false);
-
+  const { data: session } = useSession();
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
@@ -45,7 +45,18 @@ export function MobileNav() {
             >
               Get Ideas
             </MobileLink>
-         
+            {session && (
+              <MobileLink
+                href={"/my_designs"}
+                className={cn(
+                  "flex items-center px-4",
+                  "font-bold text-primary"
+                )}
+                onOpenChange={setOpen}
+              >
+                My Designs
+              </MobileLink>
+            )}
           </div>
         </ScrollArea>
       </SheetContent>
@@ -71,7 +82,6 @@ function MobileLink({
     <Link
       href={href}
       onClick={() => {
-  
         // eslint-disable-next-line @typescript-eslint/no-base-to-string
         router.push(href.toString());
         onOpenChange?.(false);

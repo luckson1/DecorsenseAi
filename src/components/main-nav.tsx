@@ -5,10 +5,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { cn } from "../lib/utils";
 import { siteConfig } from "@/lib/config";
-
+import { useSession } from "next-auth/react";
 
 export function MainNav() {
-
+  const { data: session } = useSession();
   return (
     <div className="mr-4 hidden md:flex">
       <Link href="/" className="mr-6 flex items-center space-x-4">
@@ -28,10 +28,16 @@ export function MainNav() {
           href={"/dream"}
           className={cn("flex items-center px-4", "font-bold text-primary")}
         >
-        Get Ideas
+          Get Ideas
         </Link>
-      
-
+        {session && (
+          <Link
+            href={"/my_designs"}
+            className={cn("flex items-center px-4", "font-bold text-primary")}
+          >
+            My Designs
+          </Link>
+        )}
       </nav>
     </div>
   );
