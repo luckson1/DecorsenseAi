@@ -28,7 +28,10 @@ import { useDropzone } from "react-dropzone";
 import type { ControllerRenderProps, Noop, UseFormResetField,} from "react-hook-form";
 import axios from "axios";
 import { api } from "@/utils/api";
-import { Room, Theme } from "@prisma/client";
+import type { Room, Theme } from "@prisma/client";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export interface MediaData extends Blob {
   name:string
@@ -160,6 +163,15 @@ const Dropzone=({ field, onBlur, images, resetField}: {
 
 
 export default function DreamPage() {
+  const {status}=useSession()
+  const isLoading=status === 'loading'
+  const isUnAuthenticated=status === 'unauthenticated'
+  const router=useRouter()
+  useEffect(()=> {
+    if(isUnAuthenticated) {
+      router.replace('/auth')
+    }
+  })
   const [restoredImages, setRestoredImages] = useState<{theme:themeType, url:string, id:string}[] | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -226,7 +238,11 @@ const onSubmit=async(data: RoomValues)=> {
           
                 <form className="w-full flex justify-center flex-col items-center lg:w-1/3 p-5" onSubmit={handleSubmit((data)=> onSubmit(data))}>
                
-                <div className="space-y-4 w-full max-w-sm flex flex-col">
+               {isLoading ? <Card className="w-full my-4">
+                <CardContent className="w-full">
+                  <Skeleton className="w-full h-80" />
+                </CardContent>
+               </Card> : <div className="space-y-4 w-full max-w-sm flex flex-col">
             
               <Label className="w-full max-w-xs text-start my-2">Upload a picture of your home</Label>
               <Controller
@@ -247,9 +263,13 @@ const onSubmit=async(data: RoomValues)=> {
                 />
             
       
-                  </div>
+                  </div>}
             
-                  <div className="space-y-4 w-full max-w-sm flex flex-col">
+                  {isLoading ? <Card className="w-full my-4">
+                <CardContent className="w-full">
+                  <Skeleton className="w-full h-20" />
+                </CardContent>
+               </Card> :      <div className="space-y-4 w-full max-w-sm flex flex-col">
                   
                 
               <Label className="w-full max-w-xs text-start my-2">select type room </Label>
@@ -320,8 +340,12 @@ const onSubmit=async(data: RoomValues)=> {
                 />
              
         
-                  </div>
-                  <div className="space-y-4 w-full max-w-sm flex flex-col mt-4">
+                  </div>}
+                  {isLoading ? <Card className="w-full my-4">
+                <CardContent className="w-full">
+                  <Skeleton className="w-full h-[500px]" />
+                </CardContent>
+               </Card> :  <div className="space-y-4 w-full max-w-sm flex flex-col mt-4">
                   <Label className="w-full max-w-xs text-start my-2">Select Design theme (maximum of 4)</Label>
              
                     <div className="w-full h-fit grid grid-cols-3">
@@ -371,7 +395,7 @@ const onSubmit=async(data: RoomValues)=> {
                       </div>
              
                     
-                  </div>
+                  </div>}
               <div className="w-full flex justify-start"> 
          
             <Button className="mt-5 w-full max-w-xs" size={'lg'} role="submit" >
