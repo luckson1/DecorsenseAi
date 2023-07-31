@@ -96,7 +96,7 @@ const Dropzone=({ field, onBlur, }: {
   });
   
   const thumbs = files.map(file => (
-    <div className='inline-flex border-2 border-base-300 rounded mb-2 mr-2 w-full max-w-xs h-[320px] p-1 border-box' key={file.name}>
+    <div className='inline-flex border-2 border-base-300 rounded mb-2 mr-2 w-full  p-1 border-box' key={file.name}>
       <div className='flex overflow-hidden '>
         <img
         alt="pet"
@@ -115,7 +115,7 @@ const Dropzone=({ field, onBlur, }: {
     return () => files.forEach(file => URL.revokeObjectURL(file.preview));
   }, [files]);
     return (
-        <section className=" item-center   flex h-fit min-h-28   w-full flex-col rounded-md  border-2 border-dashed border-[hsl(var(--bc) / var(--tw-border-opacity))] bg-base-100 py-4 px-2 ">
+        <section className=" item-center   flex max-w-xs h-fit my-5  w-full flex-col rounded-md  border-2 border-dashed border-[hsl(var(--bc) / var(--tw-border-opacity))] bg-base-100 py-4 px-2 ">
         <div
 
           {...getRootProps({ className: "dropzone" })}
@@ -124,9 +124,9 @@ const Dropzone=({ field, onBlur, }: {
 
 <input {...getInputProps({ onBlur })} />
           <div className="flex w-full flex-row items-center justify-center gap-3 align-baseline">
-            <UploadCloud className="text-xl" />{" "}
+        
           
-             { isDragActive? <p className="text-green-500">Drop them here!</p>: <p>Drag & drop files here, or click to select files</p>}
+             { isDragActive? <p className="text-green-500">Drop them here!</p>: <Button size={'lg'} className="space-x-2 flex" type="button">     <UploadCloud className="text-xl" /> <p>Click to select an Image</p></Button>}
        
           </div>
         </div>
