@@ -25,9 +25,10 @@ import ResizablePanel from "@/components/ResizablePanel";
 import { UploadCloud } from "lucide-react";
 
 import { useDropzone } from "react-dropzone";
-import type { ControllerRenderProps, Noop,} from "react-hook-form";
+import type { ControllerRenderProps, Noop, UseFormResetField,} from "react-hook-form";
 import axios from "axios";
 import { api } from "@/utils/api";
+import { Room, Theme } from "@prisma/client";
 
 export interface MediaData extends Blob {
   name:string
@@ -75,9 +76,16 @@ const imageSchema=z.array(z.object({
 
 }))
 type Images=z.infer<typeof imageSchema>
-const Dropzone=({ field, onBlur, }: {
+const Dropzone=({ field, onBlur, images, resetField}: {
   onBlur: Noop,
   field: ControllerRenderProps<RoomValues, 'images'>
+  images: Images,
+  resetField:  UseFormResetField<{
+    key: string;
+    room: Room;
+    themes:Theme[];
+    images: Images}>
+
 }) => {
   const [files, setFiles] = useState<((MediaData ) & { preview: string, })[]>([]);
   const {getRootProps, getInputProps, isDragActive} = useDropzone({
@@ -96,16 +104,18 @@ const Dropzone=({ field, onBlur, }: {
   });
   
   const thumbs = files.map(file => (
-    <div className='inline-flex border-2 border-base-300 rounded mb-2 mr-2 w-full  p-1 border-box' key={file.name}>
-      <div className='flex overflow-hidden '>
-        <img
-        alt="pet"
+    <div className='inline-flex border-2 border-base-300 rounded mb-2 mr-2 w-full h-full p-1 border-box' key={file.name}>
+      <div className='flex overflow-hidden h-full w-full relative'>
+       <Image
+        alt="room"
           src={file.preview}
 
          className='block w-auto h-full'
           // Revoke data uri after image is loaded
           onLoad={() => { URL.revokeObjectURL(file.preview) }}
+          fill
         />
+         
       </div>
     </div>
   ));
@@ -115,25 +125,32 @@ const Dropzone=({ field, onBlur, }: {
     return () => files.forEach(file => URL.revokeObjectURL(file.preview));
   }, [files]);
     return (
-        <section className=" item-center   flex max-w-xs h-fit my-5  w-full flex-col rounded-md  border-2 border-dashed border-[hsl(var(--bc) / var(--tw-border-opacity))] bg-base-100 py-4 px-2 ">
+        <section className=" item-center   flex max-w-xs h-[20rem]   w-full flex-col rounded-md  border-2 border-dashed border-[hsl(var(--bc) / var(--tw-border-opacity))] bg-base-100 py-4 px-2 ">
         <div
 
           {...getRootProps({ className: "dropzone" })}
-          className="cursor-pointer  "
+          className="cursor-pointer"
         >
 
 <input {...getInputProps({ onBlur })} />
           <div className="flex w-full flex-row items-center justify-center gap-3 align-baseline">
         
           
+           {!images &&  <>
              { isDragActive? <p className="text-green-500">Drop them here!</p>: <Button size={'lg'} className="space-x-2 flex" type="button">     <UploadCloud className="text-xl" /> <p>Click to select an Image</p></Button>}
-       
+             </>}
+       {images &&  <ToolTipComponent content="Change image" >
+  <Button size={'icon'}  onClick={()=>resetField('images')}>
+  <Trash />
+  </Button>
+  </ToolTipComponent>}
           </div>
         </div>
-        <aside className="mt-2 flex flex-row flex-wrap h-fit w-full  md:mt-6">
+       <aside className="m-2 flex flex-row flex-wrap h-full w-full relative">
     
    
          {thumbs}
+        
         </aside>
       </section>
     );
@@ -146,11 +163,12 @@ export default function DreamPage() {
   const [restoredImages, setRestoredImages] = useState<{theme:themeType, url:string, id:string}[] | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
-const {setValue, formState: {errors}, handleSubmit, control, watch}=useForm<RoomValues>({
+const {setValue, formState: {errors}, handleSubmit, resetField, control, watch}=useForm<RoomValues>({
   resolver: zodResolver(roomSchema),
 })
 
 const roomThemes=watch('themes')
+const images=watch('images')
 
 
   const uploadToS3 =async (images: Images)=> {
@@ -210,7 +228,7 @@ const onSubmit=async(data: RoomValues)=> {
                
                 <div className="space-y-4 w-full max-w-sm flex flex-col">
             
-              <Label className="w-full max-w-xs text-start">Upload a picture of your home</Label>
+              <Label className="w-full max-w-xs text-start my-2">Upload a picture of your home</Label>
               <Controller
           name='images'
           
@@ -218,7 +236,7 @@ const onSubmit=async(data: RoomValues)=> {
 
           render={({field})=> (
             
-              <Dropzone field={field} onBlur={field.onBlur} />
+              <Dropzone field={field} onBlur={field.onBlur} resetField={resetField} images={images}/>
             )}
           />
             <ErrorMessage
@@ -234,7 +252,7 @@ const onSubmit=async(data: RoomValues)=> {
                   <div className="space-y-4 w-full max-w-sm flex flex-col">
                   
                 
-              <Label className="w-full max-w-xs text-start">Room type</Label>
+              <Label className="w-full max-w-xs text-start my-2">select type room </Label>
           <Controller
           name="room"
           
@@ -304,7 +322,7 @@ const onSubmit=async(data: RoomValues)=> {
         
                   </div>
                   <div className="space-y-4 w-full max-w-sm flex flex-col mt-4">
-                  <Label className="w-full max-w-xs text-start">Select Design theme (maximum of 4)</Label>
+                  <Label className="w-full max-w-xs text-start my-2">Select Design theme (maximum of 4)</Label>
              
                     <div className="w-full h-fit grid grid-cols-3">
                     {themes.map((t) => (
