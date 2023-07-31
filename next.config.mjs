@@ -8,7 +8,7 @@ await import("./src/env.mjs");
 const config = {
   reactStrictMode: true,
   images: {
-    domains: ["upcdn.io", "replicate.delivery", "res.cloudinary.com"],
+    domains: ["upcdn.io", "replicate.delivery", "res.cloudinary.com", "pbxt.replicate.delivery", "jenga.s3.eu-west-3.amazonaws.com", "jenga.s3.eu-west-3.amazonaws.com"],
   },
 
   /**
